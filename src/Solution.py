@@ -1,6 +1,8 @@
 import os
 import collections
 import csv
+import zipfile
+
 
 sysid_ref={
         '46029': 'FAR',
@@ -16,6 +18,9 @@ participant_ref={
 outbound_path= 'C:/Users/User/PycharmProjects/dtccconfirm/outbounds/'
 confirm_path='C:/Users/User/PycharmProjects/dtccconfirm/confirms/'
 output_path='C:/Users/User/PycharmProjects/dtccconfirm/output/'
+zip_path='C:/Users/User/PycharmProjects/dtccconfirm/zipfiles/'
+
+outbound_file_start_with = 'DTSUTF'
 
 def parse_hdr(hdr):
     sysid = hdr[5:10]
@@ -55,7 +60,7 @@ def parse_outbound_file(file):
         sysid, submitter, sent_dt,  participant,participant_name, file_type ,seq,hdr
     )
 
-    print(record)
+    #print(record)
     return record
 
 def parse_confirm_file(file):
@@ -67,6 +72,7 @@ def parse_confirm_file(file):
 
     with open(file, 'r') as reader:
         # Read and print the entire file line by line
+        #print('processing file:',file)
         for line in reader:
 
             if line[5:8]=='HDR':
@@ -79,7 +85,7 @@ def parse_confirm_file(file):
     record = CRecord(
         status, hdr
     )
-    print(record)
+    #print(record)
     return record
 
 def dtcc_confirm_status():
@@ -89,7 +95,7 @@ def dtcc_confirm_status():
     outbound_files=os.listdir(outbound_path)
 
     confirm_files = os.listdir(confirm_path)
-    print(outbound_files,confirm_files)
+    #print(outbound_files,confirm_files)
     #Populating Participant ID,File Type Feilds in Output file from input data files
     outbound_data=[]
     confirm_data=[]
@@ -101,18 +107,21 @@ def dtcc_confirm_status():
     )
 
     for file in outbound_files:
-        print(f'Processing outbound file:{outbound_path+file}')
+        #print(f'Processing outbound file:{outbound_path+file}')
         outbound_record = parse_outbound_file(outbound_path+file)
         outbound_data.append(outbound_record)
 
     for file in confirm_files:
-        print(f'Processing Confirm file:{confirm_path+file}')
+        #print(f'Processing Confirm file:{confirm_path+file}')
         confirm_record=parse_confirm_file(confirm_path+file)
         confirm_data.append(confirm_record)
+
     with open(output_path+'dtcc_outbound_status.csv', mode='w',newline='') as output_file:
         output_writer = csv.writer(output_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
         output_writer.writerow(['sysid','submitter','sent_dt','participant','participant_name','file_type','seq','status'])
         status=None
+        #print(outbound_data)
+        #print(confirm_data)
         for orecord in outbound_data:
              for crecord in confirm_data:
                  if orecord.hdr==crecord.hdr:
@@ -128,16 +137,36 @@ def dtcc_confirm_status():
                     orecord.seq,
                     status
                  )
-                 print(frecord)
-                 dtcc_confirm_data.append(frecord)
-                 output_writer.writerow(frecord)
+                 #print(frecord)
+             dtcc_confirm_data.append(frecord)
+             output_writer.writerow(frecord)
 
 def clean_up_files():
-    pass
+
+    for file in os.listdir(confirm_path):
+        os.remove(confirm_path+file)
+
+    for file in os.listdir(outbound_path):
+        os.remove(outbound_path+file)
 
 def unzip_files():
+    zip_files = os.listdir(zip_path)
+
+    confirm_zips = [ zip for zip in zip_files if zip.startswith('CONFIRM')]
+    outbound_zips = [ zip for zip in zip_files if zip.startswith(outbound_file_start_with)]
+    for zip in confirm_zips:
+        data_zip = zipfile.ZipFile(zip_path+zip, 'r')
+        data_zip.extractall(path=confirm_path)
+
+    for zip in outbound_zips:
+        data_zip = zipfile.ZipFile(zip_path+zip, 'r')
+        data_zip.extractall(path=outbound_path)
+    #print(confirm_zips,outbound_zips)
+
     pass
 
 def archive_files():
     pass
 
+def send_status_email():
+    pass
