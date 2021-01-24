@@ -1,4 +1,5 @@
 import os
+import collections
 import pandas as pd 
 import time
 import psutil
@@ -6,84 +7,103 @@ import psutil
 #import mail
 import json 
 
+def parse_hdr(hdr):
+    region = hdr[4:5]
+    sysid = hdr[5:10]
+    submitter = hdr[15:20]
+    sent_dt = hdr[26:34]
+    seq = hdr[59:63]
+    return region,sysid,submitter,sent_dt,seq
+
+def parse_outbound_file(file):
+    ORecord = collections.namedtuple(
+        'ORecord',
+        'region,sysid,submitter,sent_dt,seq,participant,file_type,hdr'
+    )
+    sysid_ref={
+        '46029': 'FAR',
+        '46030' : 'COM'
+    }
+    region,sysid,submitter,sent_dt,seq,participant,file_type,hdr,temp_file_type=None,None,None,None,None,None,None,None,None
+    with open(file, 'r') as reader:
+        # Read and print the entire file line by line
+        for line in reader:
+            if line[:3]=='HDR':
+                region,sysid,submitter,sent_dt,seq=parse_hdr(line)
+                hdr=line[:63]
+
+            elif line[:3]=='C12' :
+                participant=line[3:7]
+                temp_file_type=line[31:34]
+
+            elif line[:3]=='C21' or line[:3]=='C42' :
+                participant = line[3:7]
+
+    file_type=sysid_ref.get(temp_file_type,temp_file_type)
+
+    record=ORecord(
+        region, sysid, submitter, sent_dt, seq, participant, file_type ,hdr
+    )
+    return  record
+
+def parse_confirm_file(file):
+    CRecord = collections.namedtuple(
+        'CRecord',
+        'region,sysid,submitter,sent_dt,seq,status,hdr'
+    )
+    region,sysid,submitter,sent_dt,seq,status,hdr = None, None, None, None, None, None,None
+
+    with open(file, 'r') as reader:
+        # Read and print the entire file line by line
+        for line in reader:
+            if line[5:8]=='HDR':
+                region,sysid,submitter,sent_dt,seq=parse_hdr(line[5:])
+                hdr=line[5:68]
+            elif line.find('ACCEPTED'):
+                status='Accepted'
+            elif  line.find('REJECTED'):
+                status='REJECTED'
+    record = CRecord(
+        region, sysid, submitter, sent_dt, seq, status ,hdr
+    )
+    return record
+
 def dtcc_confirm():
-    #Output file
-    df = pd.DataFrame([], columns = ['Participant ID', 'Participant Name','File Type','Status'])
 
     #Reding input data files using command prompt
-    path=r'C:\Users\User\PycharmProjects\dtccconfirm\Input Files'
-    outbound_files=os.listdir(path)
+    outbound_path= 'C:/Users/User/PycharmProjects/dtccconfirm/Input Files/'
+    outbound_files=os.listdir(outbound_path)
+    confirm_path='C:/Users/User/PycharmProjects/dtccconfirm/Result Files/'
+    confirm_files = os.listdir(confirm_path)
     print('Files:',outbound_files)
-
+    print(os.getcwd(),__file__)
     #Populating Participant ID,File Type Feilds in Output file from input data files
-    data=[]
-    for i in outbound_files:
-        temp=i.strip().split(" ")
-        file_name=temp[len(temp)-1]
-        print('filename:',file_name)
-        cmd="type "+file_name
-        d=os.popen(cmd)
-        dd=d.read().split("\n")
-        temp=file_name[14:19]
-        print('Temp:',temp)
-        if temp.strip() == '46027':
-            df = df.append(pd.Series([dd[2].strip()[3:7],dd[0].strip(),dd[2].strip()[31:34],''], index=df.columns ), ignore_index=True)
-        if temp.strip() == '46029':
-            df = df.append(pd.Series([dd[2].strip()[3:7],dd[0].strip(),'COM',''], index=df.columns ), ignore_index=True)
-        if temp.strip() == '46030':
-            df = df.append(pd.Series([dd[2].strip()[3:7],dd[0].strip(),'FAR',''], index=df.columns ), ignore_index=True)
-        data.append(dd[0])
-    print(dd)
-    nrow_output = len(df)
+    outbound_data=[]
+    confirm_data=[]
+
+    dtcc_confirm_data = []
+    dtcc_confirm = collections.namedtuple(
+        'Dtcc_Confirm',
+        'region, file, sent_dt, participant, hdr'
+    )
+
+    for file in outbound_files:
+        #print(f'Processing outbound file:{outbound_path+file}')
+        outbound_record = parse_outbound_file(outbound_path+file)
+        outbound_data.append(outbound_record)
+
+    for file in confirm_files:
+        #print(f'Processing Confirm file:{confirm_path+file}')
+        confirm_record=parse_confirm_file(confirm_path+file)
+        confirm_data.append(confirm_record)
+
+    for orecord in outbound_data:
+         for crecord in confirm_data:
+             if orecord.hdr==crecord.hdr:
+                    frecord=orecord+(crecord.status,)
+                    dtcc_confirm_data.append(frecord)
+
+    print(dtcc_confirm_data)
 
 
-    #Reading Response Files of input files
-    os.chdir(r'C:\Users\User\PycharmProjects\dtccconfirm\Result Files')
-    cmd="dir"
-    d=os.popen(cmd)
-    result_Files=d.read()
-    result_data=[]
-    for file_name in result_Files.split("\n"):
-        if file_name !='':
-            if file_name[0] != ' ' and file_name.find("<DIR>") == -1:
-                result_data.append(file_name)
 
-    #Populating  Status Field in Output file from Response data files
-    for i in result_data:
-        temp=i.strip().split(" ")
-        file_name=temp[len(temp)-1]
-        cmd="type "+file_name
-        d=os.popen(cmd)
-        dd=d.read()
-        for j in data:
-            if dd.find(j.strip()) != -1:
-                temp_var=[val for val in dd.split("\n") if val.strip()!=""]
-                temp_index=df.index[df['Participant Name'] == j.strip()]
-                df.loc[temp_index, 'Status'] = temp_var[len(temp_var)-1].strip()
-
-
-    #Generating Temprory Participant Names and writing into participantNames.json file
-    participantNames = {}
-    for index in range(8):
-        pName = 'Participant'+ str(index)
-        participantNames[index] = pName
-    result = json.dumps(participantNames)
-    os.chdir(r'C:\Users\User\PycharmProjects\dtccconfirm\Output Files')
-    f= open("participantNames.json","w+")
-    f.write(result)
-    f.close()
-
-    #Populating Participant Names Field in output file from participantNames.json file
-    with open('participantNames.json') as json_file:
-        participantNames = json.load(json_file)
-
-    for index in range(8):
-        df.loc[index, 'Participant Name'] = participantNames.get(str(index))
-
-
-    #Converting Data Frame to output File
-    df.to_csv(r'C:\Users\User\PycharmProjects\dtccconfirm\Output Files\output.csv')
-
-    #Sending mail
-    os.chdir(r'C:\Users\User\PycharmProjects\dtccconfirm')
-    #mail.send_status()
