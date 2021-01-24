@@ -5,7 +5,8 @@ import time
 import psutil
 import psutil
 #import mail
-import json 
+import json
+import csv
 
 def parse_hdr(hdr):
     region = hdr[4:5]
@@ -38,8 +39,9 @@ def parse_outbound_file(file):
 
             elif line[:3]=='C21' or line[:3]=='C42' :
                 participant = line[3:7]
+    #print(temp_file_type)
 
-    file_type=sysid_ref.get(temp_file_type,temp_file_type)
+    file_type=sysid_ref.get(sysid,temp_file_type)
 
     record=ORecord(
         region, sysid, submitter, sent_dt, seq, participant, file_type ,hdr
@@ -96,12 +98,15 @@ def dtcc_confirm():
         #print(f'Processing Confirm file:{confirm_path+file}')
         confirm_record=parse_confirm_file(confirm_path+file)
         confirm_data.append(confirm_record)
-
-    for orecord in outbound_data:
-         for crecord in confirm_data:
-             if orecord.hdr==crecord.hdr:
-                    frecord=orecord+(crecord.status,)
-                    dtcc_confirm_data.append(frecord)
+    with open('output.csv', mode='w',newline='') as output_file:
+        output_writer = csv.writer(output_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        output_writer.writerow(['region','sysid','submitter','sent_dt','seq','participant','file_type','hdr','status'])
+        for orecord in outbound_data:
+             for crecord in confirm_data:
+                 if orecord.hdr==crecord.hdr:
+                        frecord=orecord+(crecord.status,)
+                        dtcc_confirm_data.append(frecord)
+                        output_writer.writerow(frecord)
 
     print(dtcc_confirm_data)
 
