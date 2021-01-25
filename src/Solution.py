@@ -35,10 +35,10 @@ def parse_hdr(hdr):
     seq= hdr[59:63]
     return sysid,submitter,sent_dt,seq
 
-def parse_outbound_file(file):
+def parse_outbound_file(file,file_name):
     ORecord = collections.namedtuple(
         'ORecord',
-        'sysid,submitter,sent_dt,participant,participant_name,seq,file_type,hdr'
+        'sysid,submitter,sent_dt,participant,file_name,participant_name,seq,file_type,hdr'
     )
 
     sysid,submitter,sent_dt,participant,participant_name,file_type,hdr,temp_file_type=None,None,None,None,None,None,None,None
@@ -63,7 +63,7 @@ def parse_outbound_file(file):
     participant_name=participant_ref.get(participant,participant)
 
     record=ORecord(
-        sysid, submitter, sent_dt,  participant,participant_name, file_type ,seq,hdr
+        sysid, submitter, sent_dt,  participant,file_name,participant_name, file_type ,seq,hdr
     )
 
     #print(record)
@@ -109,12 +109,12 @@ def dtcc_confirm_status():
     dtcc_confirm_data = []
     Dtcc_Confirm = collections.namedtuple(
         'Dtcc_Confirm',
-        'sysid,submitter,sent_dt,participant,participant_name,file_type,seq,status'
+        'sysid,submitter,sent_dt,participant,file_name,participant_name,file_type,seq,status'
     )
 
     for file in outbound_files:
         #print(f'Processing outbound file:{outbound_path+file}')
-        outbound_record = parse_outbound_file(outbound_path+file)
+        outbound_record = parse_outbound_file(outbound_path+file,file)
         outbound_data.append(outbound_record)
 
     for file in confirm_files:
@@ -124,7 +124,7 @@ def dtcc_confirm_status():
 
     with open(output_path+'dtcc_outbound_status.csv', mode='w',newline='') as output_file:
         output_writer = csv.writer(output_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        output_writer.writerow(['sysid','submitter','sent_dt','participant','participant_name','file_type','seq','status'])
+        output_writer.writerow(['sysid','submitter','sent_dt','participant','file_name','participant_name','file_type','seq','status'])
         status=None
         #print(outbound_data)
         #print(confirm_data)
@@ -138,6 +138,7 @@ def dtcc_confirm_status():
                     orecord.submitter,
                     orecord.sent_dt,
                     orecord.participant,
+                    orecord.file_name,
                     orecord.participant_name,
                     orecord.file_type,
                     orecord.seq,
