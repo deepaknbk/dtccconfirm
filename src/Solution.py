@@ -6,13 +6,19 @@ import zipfile
 
 sysid_ref={
         '46029': 'FAR',
-        '46030' : 'COM'
+        '46030' : 'COM',
+        '26029': 'FAR',
+        '26030' : 'COM'
     }
 
+
 participant_ref={
-        '0122' : 'Abc',
-        '0987' : 'Def',
-        '0443' : 'Xyz'
+        '1723' : 'United Bank',
+        '0725' : 'Raymond James Insurance Group, Inc.',
+        '0443' : 'Pershing',
+        '6317'  : 'TD Wealth Management Services, Inc',
+        '0122' : 'Test IBD',
+        '0987' : 'Def'
     }
 
 outbound_path= 'C:/Users/User/PycharmProjects/dtccconfirm/outbounds/'
@@ -20,7 +26,7 @@ confirm_path='C:/Users/User/PycharmProjects/dtccconfirm/confirms/'
 output_path='C:/Users/User/PycharmProjects/dtccconfirm/output/'
 zip_path='C:/Users/User/PycharmProjects/dtccconfirm/zipfiles/'
 
-outbound_file_start_with = 'DTSUTF'
+outbound_file_start_with = ('DTSUTF','DTSFTP')
 
 def parse_hdr(hdr):
     sysid = hdr[5:10]
